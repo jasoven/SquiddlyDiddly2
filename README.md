@@ -18,6 +18,7 @@ This is a Windows NT File System Octopus variant. This **malware** proof-of-conc
 * Complete bugs from previous project
 * Introduce SYSTEM elevation procedures
 * Introduce THREAD_CONTEXT switching from previous AntiTraceEffect
+* Removal of additional user-mode functionality
 
 8/28/17
 * I am in the process of converting this project is x64
@@ -46,11 +47,11 @@ THIS PROJECT IS NOT COMPLETE AND WILL NOT COMPILE AS OF 10/03/17
 ### **Infection/Keylogging**
 
     * RegisterRawInputData + GetRawInput
-    * Fractionates self into X bytes. Injects into resource section of enumerated unsigned files in %LOCALAPPDATA%
+    * Current project contains no infection mechanism. This branch is PAYLOAD ONLY.
 
 ## Built With
 
-* [Dev C++](https://sourceforge.net/projects/orwelldevcpp/)
+* [Visual Studio 2017](https://www.visualstudio.com/vs/whatsnew/)
 * [Microsoft Windows API](https://msdn.microsoft.com/en-us/library/aa383723(VS.85).aspx)
 
 ## Authors
@@ -75,3 +76,5 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 * merced - for debugging help
 * jDoodle.com - for saving me a ton of time
 * md5decrypt.com - for saving me a ton of time
+* mattifestation 
+* malwarehunterteam
