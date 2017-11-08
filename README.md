@@ -3,7 +3,7 @@
 This is a Windows NT File System Octopus variant. This **malware** proof-of-concept is completely position independent, makes only kernel level calls, features resource infection mechanisms, pseudo-random name generation, and custom user-level API calls.
 
 ### **NOTE**
-* Build Version 3.187 is a debugging build. It is NOT complete and BUT will not compile.
+* Build Version 3.187 is a debugging build. It is NOT complete BUT will compile.
 
 ### **TO-DO**
 
@@ -40,11 +40,11 @@ This is a Windows NT File System Octopus variant. This **malware** proof-of-conc
 
 ## Getting Started
 
-THIS PROJECT IS NOT COMPLETE AND BUT WILL COMPILE AS OF 11/08/17
+THIS PROJECT IS NOT COMPLETE BUT WILL COMPILE AS OF 11/08/17
 
 #### **Prerequisites**
 
-THIS PROJECT IS NOT COMPLETE AND BUT WILL COMPILE AS OF 11/08/17
+THIS PROJECT IS NOT COMPLETE BUT WILL COMPILE AS OF 11/08/17
 
 ### **Infection/Keylogging**
 
