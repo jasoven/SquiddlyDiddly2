@@ -3,46 +3,48 @@
 This is a Windows NT File System Octopus variant. This **malware** proof-of-concept is completely position independent, makes only kernel level calls, features resource infection mechanisms, pseudo-random name generation, and custom user-level API calls.
 
 ### **NOTE**
-* Build Version 2.592 is a debugging build. It is NOT complete and will not compile.
-* This code segment is targetted toward Windows 10 ONLY.
-* Vertical Escalation is dependent on Windows 10 FodHelper.exe
-* Removal of VxMoveFile
-* Remodeling of API table loading (VxLoadNtDllFunctions, VxLoadKernel32Functions, etc)
-* Current build has no run at start mechanism
-* Temporary removal of AntiTraceEffect();
-* Removal of any ANSI based functionality
+* Build Version 3.187 is a debugging build. It is NOT complete and BUT will not compile.
 
 ### **TO-DO**
+
+11/08/17
+* Complete SYSTEM escalation via services (currently experimenting)
+* Implement CONTEXT_SWITCHING
+* Implement FodHelper cleanup
+* Begin introduction to run-at-start code
+* Begin working on scalable features
+* Begin working on 'dropper' project
+
 10/03/17
-* Complete x64 VS conversion
-* Complete bugs from previous project
+* ~~Complete x64 VS conversion~~
+* ~~Complete bugs from previous project~~
 * Introduce SYSTEM elevation procedures
 * Introduce THREAD_CONTEXT switching from previous AntiTraceEffect
-* Removal of additional user-mode functionality
+* ~~Removal of additional user-mode functionality~~
 
 8/28/17
-* I am in the process of converting this project is x64
-* I am in the process of creating this as VS project
-* Bug fixes and to-do's from 8/16/2017
+* ~~I am in the process of converting this project is x64~~
+* ~~I am in the process of creating this as VS project~~
+* ~~Bug fixes and to-do's from 8/16/2017~~
 
 8/16/2017
 * Implement FodHelper.exe cleanup routine
-* Extract secondary module for file locking
-* Reimplement run at start (enhanced++) (WMI?)
-* Reimplement AntiTraceEffect w/ Thread context switching
+* ~~Extract secondary module for file locking~~ N/A
+* ~~Reimplement run at start (enhanced++) (WMI?)~~ On Hold
+* ~~Reimplement AntiTraceEffect w/ Thread context switching~~ Replaced 10/03/17 CONTEXT_SWITCH
 
 8/02/17
-* Make function specific calls for API table i.e. VxLoadNtDllFunctions, VxLoadKernel32Functions --done
-* Remove usage of PE_DATA structure --done (modified)
-* Implement Vertical escalation segment --done!
+* ~~Make function specific calls for API table i.e. VxLoadNtDllFunctions, VxLoadKernel32Functions~~
+* ~~Remove usage of PE_DATA structure --done (modified)~~
+* ~~Implement Vertical escalation segment --done!~~
 
 ## Getting Started
 
-THIS PROJECT IS NOT COMPLETE AND WILL NOT COMPILE AS OF 10/03/17
+THIS PROJECT IS NOT COMPLETE AND BUT WILL COMPILE AS OF 11/08/17
 
 #### **Prerequisites**
 
-THIS PROJECT IS NOT COMPLETE AND WILL NOT COMPILE AS OF 10/03/17
+THIS PROJECT IS NOT COMPLETE AND BUT WILL COMPILE AS OF 11/08/17
 
 ### **Infection/Keylogging**
 
