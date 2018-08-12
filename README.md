@@ -7,6 +7,9 @@ This is a Windows NT File System Octopus variant. This **malware** proof-of-conc
 
 ### **TO-DO**
 
+3/11/18
+* Project discontinued due to work/life schedule. Unable to maintain project.
+
 11/08/17
 * Complete SYSTEM escalation via services (currently experimenting)
 * Implement CONTEXT_SWITCHING
